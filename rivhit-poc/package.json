@@ -1,0 +1,13 @@
+{
+  "name": "rivhit-poc",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "POC web page for calling the Rivhit Online REST API (https://api.rivhit.co.il/online/RivhitOnlineAPI.svc).",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}

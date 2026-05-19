@@ -1,0 +1,745 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Rivhit POC</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<style>
+  :root {
+    --bg: #0f172a;
+    --panel: #1e293b;
+    --panel-2: #0b1220;
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+    --accent: #38bdf8;
+    --accent-2: #0ea5e9;
+    --ok: #4ade80;
+    --warn: #fbbf24;
+    --err: #f87171;
+    --border: #334155;
+    --row-alt: #172033;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font: 14px/1.45 system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+  }
+  header {
+    padding: 14px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  }
+  header h1 { margin: 0; font-size: 17px; }
+  header .sub { color: var(--muted); font-size: 12px; }
+  header .token-wrap { margin-inline-start: auto; display:flex; gap:8px; align-items:center; }
+  header .token-wrap label { color: var(--muted); font-size: 12px; }
+  header input#token { width: 320px; }
+
+  nav.tabs {
+    display: flex; gap: 2px; padding: 0 24px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel-2);
+  }
+  nav.tabs button {
+    background: transparent; border: none; color: var(--muted);
+    padding: 12px 18px; cursor: pointer;
+    border-bottom: 2px solid transparent;
+    font-size: 14px; font-weight: 500;
+  }
+  nav.tabs button.active {
+    color: var(--text); border-bottom-color: var(--accent);
+  }
+
+  main { padding: 16px 24px; }
+  .tab { display: none; }
+  .tab.active { display: block; }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 1000px) { .grid-2 { grid-template-columns: 1fr; } }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  .panel h2 { margin: 0 0 4px 0; font-size: 15px; }
+
+  label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  input, select, textarea, button {
+    font: inherit;
+    color: var(--text);
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 10px;
+    width: 100%;
+  }
+  textarea { font-family: ui-monospace, Consolas, Menlo, monospace; min-height: 140px; resize: vertical; }
+  input[type=number] { text-align: right; }
+  button {
+    background: var(--accent);
+    color: #08131e;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    width: auto;
+    padding: 9px 18px;
+  }
+  button:hover:not(:disabled) { background: var(--accent-2); color: #fff; }
+  button:disabled { opacity: 0.6; cursor: progress; }
+  button.secondary { background: transparent; color: var(--text); border: 1px solid var(--border); }
+  button.secondary:hover:not(:disabled) { background: var(--panel-2); color: var(--text); }
+  button.danger { background: transparent; color: var(--err); border: 1px solid var(--err); }
+  button.danger:hover { background: var(--err); color: #fff; }
+  button.sm { padding: 4px 10px; font-size: 12px; }
+
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: end; }
+  .row > * { flex: 1; min-width: 0; }
+  .row .actions { flex: 0 0 auto; display: flex; gap: 8px; }
+  .status { font-size: 12px; min-height: 16px; }
+  .status.ok  { color: var(--ok); }
+  .status.warn{ color: var(--warn); }
+  .status.err { color: var(--err); }
+  .hint { font-size: 12px; color: var(--muted); }
+  .hint code { background: var(--panel-2); padding: 1px 5px; border-radius: 4px; }
+
+  .field-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 10px;
+  }
+
+  table.items {
+    width: 100%; border-collapse: collapse;
+    background: var(--panel-2); border-radius: 6px; overflow: hidden;
+  }
+  table.items th, table.items td {
+    padding: 6px 8px; border-bottom: 1px solid var(--border);
+    text-align: start;
+  }
+  table.items th { color: var(--muted); font-weight: 500; font-size: 12px; }
+  table.items td input {
+    border: 1px solid transparent; background: transparent; padding: 4px 6px;
+  }
+  table.items td input:focus { border-color: var(--accent); background: var(--bg); outline: none; }
+  table.items td.total { color: var(--muted); white-space: nowrap; text-align: end; }
+  table.items td.act { width: 1%; }
+
+  table.data {
+    width: 100%; border-collapse: collapse; font-size: 13px;
+  }
+  table.data th, table.data td {
+    padding: 6px 10px; border-bottom: 1px solid var(--border);
+    text-align: start; vertical-align: top;
+  }
+  table.data th { color: var(--muted); font-weight: 500; font-size: 12px;
+    background: var(--panel-2); position: sticky; top: 0; }
+  table.data tr:nth-child(even) td { background: var(--row-alt); }
+  .scroll-y { max-height: 70vh; overflow: auto; border: 1px solid var(--border); border-radius: 6px; }
+
+  .totals {
+    display: flex; justify-content: flex-end; gap: 16px;
+    font-size: 13px; color: var(--muted);
+  }
+  .totals .grand { color: var(--text); font-weight: 600; font-size: 16px; }
+
+  .result-card {
+    background: linear-gradient(180deg, #14532d22, transparent);
+    border: 1px solid #16a34a55; border-radius: 8px; padding: 16px;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .result-card.err {
+    background: linear-gradient(180deg, #7f1d1d22, transparent);
+    border-color: #f8717155;
+  }
+  .result-card .big {
+    font-size: 20px; font-weight: 700; color: var(--text);
+  }
+  .result-card .kv { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; font-size: 13px; }
+  .result-card .kv .k { color: var(--muted); }
+
+  details { background: var(--panel-2); border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; }
+  details summary { cursor: pointer; color: var(--muted); font-size: 12px; user-select: none; }
+  details pre { margin: 8px 0 0 0; max-height: 360px; overflow:auto;
+    font-family: ui-monospace, Consolas, Menlo, monospace; font-size: 12px;
+    white-space: pre-wrap; word-break: break-word; color: var(--text); }
+
+  .empty { color: var(--muted); font-style: italic; }
+
+  /* Allow auto-direction for Hebrew text */
+  input, textarea, td, th { unicode-bidi: plaintext; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Rivhit POC</h1>
+  <span class="sub">api.rivhit.co.il/online/RivhitOnlineAPI.svc</span>
+  <div class="token-wrap">
+    <label for="token">API token</label>
+    <input id="token" value="0279BF82-CD57-49BA-837C-930F0E2EB805" spellcheck="false" />
+  </div>
+</header>
+
+<nav class="tabs">
+  <button data-tab="create" class="active">Create Payment Demand</button>
+  <button data-tab="explorer">API Explorer</button>
+</nav>
+
+<main>
+
+  <!-- ================= CREATE PAYMENT DEMAND ================= -->
+  <section id="tab-create" class="tab active">
+    <div class="grid-2">
+
+      <div class="panel">
+        <h2>New דרישת תשלום</h2>
+        <div class="hint">
+          Creates a document via <code>Document.New</code>. The demo merchant has no document
+          literally named "דרישת תשלום" — the closest match is <b>חשבון עסקה</b> (type 8): a
+          billing document that requests payment without triggering VAT. In a real merchant,
+          pick the matching type from the dropdown.
+        </div>
+
+        <div class="field-grid">
+          <div>
+            <label for="doc-type">Document type</label>
+            <select id="doc-type"><option>Loading…</option></select>
+          </div>
+          <div>
+            <label for="issue-date">Issue date</label>
+            <input id="issue-date" type="date" />
+          </div>
+        </div>
+
+        <div class="field-grid">
+          <div>
+            <label for="customer-id">Customer ID</label>
+            <input id="customer-id" type="number" min="0" value="2" />
+          </div>
+          <div>
+            <label>&nbsp;</label>
+            <button id="verify-customer" class="secondary" type="button">Verify customer</button>
+          </div>
+          <div style="grid-column: 1 / -1;">
+            <label>Customer preview</label>
+            <div id="customer-preview" class="hint">Click "Verify customer" to load name & balance.</div>
+          </div>
+        </div>
+
+        <div>
+          <label>Items</label>
+          <table class="items" id="items-tbl">
+            <thead>
+              <tr>
+                <th style="width:18%">Catalog #</th>
+                <th>Description</th>
+                <th style="width:90px">Qty</th>
+                <th style="width:120px">Unit price (₪)</th>
+                <th style="width:110px" class="total">Line total</th>
+                <th class="act"></th>
+              </tr>
+            </thead>
+            <tbody id="items-body"></tbody>
+          </table>
+          <div style="margin-top:8px; display:flex; justify-content: space-between; align-items:center;">
+            <button id="add-item" class="secondary sm" type="button">+ Add item</button>
+            <div class="totals">
+              <span>Subtotal: <span id="subtotal">₪0.00</span></span>
+              <span class="grand">Total: <span id="grand-total">₪0.00</span></span>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <label for="comments">Comments (printed on the document)</label>
+          <textarea id="comments" rows="3" placeholder="Optional"></textarea>
+        </div>
+
+        <div class="row">
+          <div class="actions">
+            <button id="create-doc">Create document</button>
+            <button id="reset-form" class="secondary" type="button">Reset</button>
+          </div>
+          <div class="status" id="create-status"></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Result</h2>
+        <div id="create-result">
+          <div class="empty">No document created yet. Fill in the form and click "Create document".</div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ================= API EXPLORER ================= -->
+  <section id="tab-explorer" class="tab">
+    <div class="grid-2">
+      <div class="panel">
+        <h2>Request</h2>
+
+        <div>
+          <label for="endpoint">Endpoint</label>
+          <select id="endpoint"></select>
+          <div class="hint" id="endpoint-hint"></div>
+        </div>
+
+        <div>
+          <label for="body">Request body (JSON) — <code>api_token</code> is injected automatically</label>
+          <textarea id="body" spellcheck="false"></textarea>
+        </div>
+
+        <div class="row">
+          <div class="actions">
+            <button id="send">Send</button>
+            <button id="reset" class="secondary" type="button">Reset body</button>
+          </div>
+          <div class="status" id="status">&nbsp;</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Response</h2>
+        <div id="response"><div class="empty">Send a request to see the result.</div></div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<script>
+// ===================================================================
+// Shared helpers
+// ===================================================================
+const $ = (id) => document.getElementById(id);
+const TOKEN_KEY = 'rivhit_poc_token';
+const tokenEl = $('token');
+tokenEl.value = localStorage.getItem(TOKEN_KEY) || tokenEl.value;
+tokenEl.addEventListener('change', () => localStorage.setItem(TOKEN_KEY, tokenEl.value.trim()));
+
+const fmtNIS = (n) => '₪' + (Number(n) || 0).toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+function setStatus(elId, msg, cls) {
+  const el = $(elId);
+  el.textContent = msg || ' ';
+  el.className = 'status' + (cls ? ' ' + cls : '');
+}
+
+async function callApi(endpoint, body) {
+  body = { api_token: tokenEl.value.trim(), ...body };
+  const r = await fetch('/api/' + encodeURIComponent(endpoint), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const text = await r.text();
+  let json = null;
+  try { json = JSON.parse(text); } catch {}
+  return { httpStatus: r.status, httpOk: r.ok, raw: text, json };
+}
+
+// Tabs
+document.querySelectorAll('nav.tabs button').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('nav.tabs button').forEach((b) => b.classList.remove('active'));
+    btn.classList.add('active');
+    const tab = btn.dataset.tab;
+    document.querySelectorAll('.tab').forEach((t) => t.classList.remove('active'));
+    $('tab-' + tab).classList.add('active');
+  });
+});
+
+// ===================================================================
+// CREATE PAYMENT DEMAND
+// ===================================================================
+
+// Today's date in yyyy-mm-dd for <input type=date>
+$('issue-date').value = new Date().toISOString().slice(0, 10);
+
+function newItemRow(values = {}) {
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td><input class="i-cat"  value="${values.cat || ''}" /></td>
+    <td><input class="i-desc" value="${values.desc || ''}" placeholder="Item description" /></td>
+    <td><input class="i-qty"  type="number" min="0" step="any" value="${values.qty ?? 1}" /></td>
+    <td><input class="i-price" type="number" min="0" step="any" value="${values.price ?? 0}" /></td>
+    <td class="total"><span class="line-total">₪0.00</span></td>
+    <td class="act"><button class="secondary sm i-rm" type="button" title="Remove">&times;</button></td>
+  `;
+  tr.querySelector('.i-rm').addEventListener('click', () => {
+    tr.remove();
+    recalcTotals();
+  });
+  tr.querySelectorAll('.i-qty, .i-price').forEach((el) =>
+    el.addEventListener('input', recalcTotals)
+  );
+  return tr;
+}
+
+function recalcTotals() {
+  let subtotal = 0;
+  document.querySelectorAll('#items-body tr').forEach((tr) => {
+    const q = Number(tr.querySelector('.i-qty').value) || 0;
+    const p = Number(tr.querySelector('.i-price').value) || 0;
+    const lt = q * p;
+    tr.querySelector('.line-total').textContent = fmtNIS(lt);
+    subtotal += lt;
+  });
+  $('subtotal').textContent = fmtNIS(subtotal);
+  $('grand-total').textContent = fmtNIS(subtotal);
+}
+
+function resetItems() {
+  const body = $('items-body');
+  body.innerHTML = '';
+  body.appendChild(newItemRow({ desc: '', qty: 1, price: 0 }));
+  recalcTotals();
+}
+resetItems();
+
+$('add-item').addEventListener('click', () => {
+  $('items-body').appendChild(newItemRow());
+  recalcTotals();
+});
+
+$('reset-form').addEventListener('click', () => {
+  resetItems();
+  $('comments').value = '';
+  $('create-result').innerHTML = '<div class="empty">No document created yet.</div>';
+  setStatus('create-status', '', '');
+});
+
+// Load document types into dropdown
+(async function loadDocTypes() {
+  const sel = $('doc-type');
+  try {
+    const { json } = await callApi('Document.TypeList', {});
+    if (!json || json.error_code !== 0) throw new Error(json?.client_message || 'load failed');
+    sel.innerHTML = '';
+    json.data.document_type_list.forEach((dt) => {
+      const opt = document.createElement('option');
+      opt.value = String(dt.document_type);
+      opt.textContent = `${dt.document_type} — ${dt.document_name}`;
+      sel.appendChild(opt);
+    });
+    sel.value = '8'; // closest to דרישת תשלום (חשבון עסקה)
+  } catch (e) {
+    sel.innerHTML = `<option value="8">8 — חשבון עסקה (fallback)</option>`;
+  }
+})();
+
+// Verify customer button
+$('verify-customer').addEventListener('click', async () => {
+  const id = Number($('customer-id').value);
+  const prev = $('customer-preview');
+  if (!Number.isFinite(id)) {
+    prev.innerHTML = '<span class="status err">Enter a valid customer ID</span>';
+    return;
+  }
+  prev.textContent = 'Loading…';
+  try {
+    const { json } = await callApi('Customer.Get', { customer_id: id });
+    if (!json || json.error_code !== 0) {
+      prev.innerHTML = `<span class="status err">${json?.client_message || 'not found'}</span>`;
+      return;
+    }
+    const c = json.data;
+    const name = (c.first_name + ' ' + c.last_name).trim() || '(unnamed)';
+    prev.innerHTML = `
+      <div><b>${escapeHtml(name)}</b>
+        ${c.phone ? '· 📞 ' + escapeHtml(c.phone) : ''}
+        ${c.email ? '· ✉️ ' + escapeHtml(c.email) : ''}</div>
+      <div class="hint">Balance: <b>${fmtNIS(c.balance)}</b>
+        ${c.city ? '· ' + escapeHtml(c.city) : ''}</div>
+    `;
+  } catch (e) {
+    prev.innerHTML = `<span class="status err">${escapeHtml(String(e))}</span>`;
+  }
+});
+
+// Submit
+$('create-doc').addEventListener('click', async () => {
+  const btn = $('create-doc');
+  const docType = Number($('doc-type').value);
+  const customerId = Number($('customer-id').value);
+  const issueDate = ymdToDmy($('issue-date').value); // Rivhit wants DD/MM/YYYY
+  const comments = $('comments').value.trim();
+
+  const items = [];
+  document.querySelectorAll('#items-body tr').forEach((tr) => {
+    const desc = tr.querySelector('.i-desc').value.trim();
+    const qty = Number(tr.querySelector('.i-qty').value);
+    const price = Number(tr.querySelector('.i-price').value);
+    const cat = tr.querySelector('.i-cat').value.trim();
+    if (!desc && !cat) return;
+    items.push({
+      catalog_number: cat || undefined,
+      description: desc,
+      quantity: qty,
+      price_nis: price,
+    });
+  });
+
+  if (!Number.isFinite(customerId)) return setStatus('create-status', 'Customer ID is required', 'err');
+  if (items.length === 0) return setStatus('create-status', 'Add at least one item', 'err');
+
+  const body = {
+    document_type: docType,
+    customer_id: customerId,
+    items,
+    issue_date: issueDate,
+    comments: comments || undefined,
+  };
+
+  btn.disabled = true;
+  setStatus('create-status', 'Creating…', '');
+  const started = performance.now();
+  try {
+    const { json, httpStatus, raw } = await callApi('Document.New', body);
+    const ms = Math.round(performance.now() - started);
+    if (json && json.error_code === 0) {
+      renderCreateSuccess(json.data, { docType, customerId, items, comments, raw });
+      setStatus('create-status', `Document created · ${ms} ms`, 'ok');
+    } else {
+      renderCreateError(json, raw, httpStatus);
+      setStatus('create-status', `Failed · ${ms} ms`, 'err');
+    }
+  } catch (e) {
+    renderCreateError({ client_message: String(e) }, '', 0);
+    setStatus('create-status', 'Request failed', 'err');
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+function renderCreateSuccess(data, ctx) {
+  const docTypeName = $('doc-type').selectedOptions[0]?.textContent || `type ${ctx.docType}`;
+  const itemRows = ctx.items
+    .map((it) => `<tr>
+        <td>${escapeHtml(it.catalog_number || '')}</td>
+        <td>${escapeHtml(it.description || '')}</td>
+        <td style="text-align:end">${it.quantity}</td>
+        <td style="text-align:end">${fmtNIS(it.price_nis)}</td>
+        <td style="text-align:end">${fmtNIS(it.quantity * it.price_nis)}</td>
+      </tr>`)
+    .join('');
+  $('create-result').innerHTML = `
+    <div class="result-card">
+      <div class="big">✓ ${escapeHtml(docTypeName)} · # ${data.document_number}</div>
+      <div class="kv">
+        <span class="k">Customer ID</span><span>${ctx.customerId}</span>
+        <span class="k">Amount</span><span>${fmtNIS(data.amount)}</span>
+        <span class="k">Document identity</span><span style="font-family:ui-monospace,Consolas,Menlo,monospace;font-size:12px">${escapeHtml(data.document_identity || '')}</span>
+      </div>
+      <table class="data">
+        <thead><tr><th>Cat#</th><th>Description</th><th style="text-align:end">Qty</th><th style="text-align:end">Unit ₪</th><th style="text-align:end">Total ₪</th></tr></thead>
+        <tbody>${itemRows}</tbody>
+      </table>
+      ${ctx.comments ? `<div><b>Comments:</b> ${escapeHtml(ctx.comments)}</div>` : ''}
+      <div class="row" style="justify-content:flex-start; gap:8px;">
+        ${data.document_link ? `<a href="${escapeAttr(data.document_link)}" target="_blank" rel="noopener"><button type="button">Open PDF ↗</button></a>` : ''}
+      </div>
+      <details><summary>Raw JSON</summary><pre>${escapeHtml(JSON.stringify(JSON.parse(ctx.raw), null, 2))}</pre></details>
+    </div>
+  `;
+}
+
+function renderCreateError(json, raw, httpStatus) {
+  $('create-result').innerHTML = `
+    <div class="result-card err">
+      <div class="big">✗ Document not created</div>
+      <div class="kv">
+        <span class="k">Error code</span><span>${json?.error_code ?? '—'}</span>
+        <span class="k">Client message</span><span>${escapeHtml(json?.client_message || '(none)')}</span>
+        <span class="k">Debug message</span><span>${escapeHtml(json?.debug_message || '(none)')}</span>
+        <span class="k">HTTP</span><span>${httpStatus || '—'}</span>
+      </div>
+      <details><summary>Raw response</summary><pre>${escapeHtml(raw || '')}</pre></details>
+    </div>
+  `;
+}
+
+// ===================================================================
+// API EXPLORER
+// ===================================================================
+const ENDPOINTS = [
+  { name: 'Document.TypeList',  hint: 'Document types defined for the business.',   body: {} },
+  { name: 'Customer.TypeList',  hint: 'Customer types defined for the business.',   body: {} },
+  { name: 'Currency.List',      hint: 'Currencies available in the business.',      body: {} },
+  { name: 'Payment.TypeList',   hint: 'Payment types defined for the business.',    body: {} },
+  { name: 'Company.Details',    hint: 'Basic details of the current business.',     body: {} },
+  { name: 'Customer.Get',       hint: 'Fetch one customer by id.',                  body: { customer_id: 2 } },
+  { name: 'Customer.List',      hint: 'List customers. Demo has ~57k customers — keep filters tight.',
+                                body: { customer_type: 1 } },
+  { name: 'Item.List',          hint: 'List items in the catalog.',                 body: {} },
+  { name: 'Document.List',      hint: 'List documents in a date range. DD/MM/YYYY.',
+                                body: { from_date: '01/01/2020', to_date: '31/12/2030' } },
+  { name: 'Receipt.List',       hint: 'List receipts. DD/MM/YYYY.',
+                                body: { from_date: '01/01/2020', to_date: '31/12/2030' } },
+];
+
+const select = $('endpoint');
+ENDPOINTS.forEach((e, i) => {
+  const opt = document.createElement('option');
+  opt.value = String(i);
+  opt.textContent = e.name;
+  select.appendChild(opt);
+});
+function fillTemplate() {
+  const ep = ENDPOINTS[Number(select.value)];
+  $('endpoint-hint').textContent = ep.hint;
+  $('body').value = JSON.stringify(ep.body, null, 2);
+}
+select.addEventListener('change', fillTemplate);
+$('reset').addEventListener('click', fillTemplate);
+fillTemplate();
+
+$('send').addEventListener('click', async () => {
+  const ep = ENDPOINTS[Number(select.value)];
+  let body;
+  try {
+    body = $('body').value.trim() ? JSON.parse($('body').value) : {};
+  } catch (e) {
+    setStatus('status', 'Body is not valid JSON: ' + e.message, 'err');
+    return;
+  }
+  const btn = $('send');
+  btn.disabled = true;
+  setStatus('status', 'Sending…', '');
+  $('response').innerHTML = '<div class="empty">Loading…</div>';
+  const started = performance.now();
+  try {
+    const { json, httpStatus, httpOk, raw } = await callApi(ep.name, body);
+    const ms = Math.round(performance.now() - started);
+    renderResponse(ep.name, json, raw, httpStatus);
+    if (json && json.error_code === 0) {
+      setStatus('status', `OK · HTTP ${httpStatus} · ${ms} ms`, 'ok');
+    } else if (json) {
+      setStatus('status', `error_code ${json.error_code} · HTTP ${httpStatus} · ${ms} ms`, 'err');
+    } else {
+      setStatus('status', `HTTP ${httpStatus} · ${ms} ms`, httpOk ? 'warn' : 'err');
+    }
+  } catch (e) {
+    $('response').innerHTML = `<div class="status err">${escapeHtml(String(e))}</div>`;
+    setStatus('status', 'Request failed', 'err');
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+// Pretty renderer with known-shape detection
+function renderResponse(endpoint, json, raw, httpStatus) {
+  if (!json) {
+    $('response').innerHTML = `
+      <div class="status err">Non-JSON response (HTTP ${httpStatus})</div>
+      <details open><summary>Raw</summary><pre>${escapeHtml(raw)}</pre></details>`;
+    return;
+  }
+  if (json.error_code !== 0) {
+    $('response').innerHTML = `
+      <div class="result-card err">
+        <div class="big">✗ error_code ${json.error_code}</div>
+        <div class="kv">
+          <span class="k">Client message</span><span>${escapeHtml(json.client_message || '(none)')}</span>
+          <span class="k">Debug message</span><span>${escapeHtml(json.debug_message || '(none)')}</span>
+        </div>
+      </div>
+      <details style="margin-top:8px"><summary>Raw JSON</summary><pre>${escapeHtml(JSON.stringify(json, null, 2))}</pre></details>`;
+    return;
+  }
+
+  const data = json.data;
+  const html = renderData(data);
+  $('response').innerHTML = `
+    ${html}
+    <details style="margin-top:12px"><summary>Raw JSON</summary><pre>${escapeHtml(JSON.stringify(json, null, 2))}</pre></details>
+  `;
+}
+
+function renderData(data) {
+  if (data == null) return '<div class="empty">No data.</div>';
+
+  // Look for the most useful list key in the response
+  const listKey = Object.keys(data).find((k) => Array.isArray(data[k]));
+  if (listKey) {
+    const list = data[listKey];
+    return renderListAsTable(listKey, list);
+  }
+  // Single object → key/value card
+  return renderKeyValue(data);
+}
+
+const PREFERRED_COLS = {
+  customer_list:        ['customer_id', 'first_name', 'last_name', 'phone', 'email', 'city', 'balance'],
+  document_type_list:   ['document_type', 'document_name', 'document_english_name', 'is_accounting', 'price_include_vat'],
+  customer_type_list:   ['customer_type', 'customer_type_name'],
+  currency_list:        ['currency_id', 'currency_name', 'currency_sign'],
+  payment_type_list:    ['payment_type', 'payment_type_name'],
+  item_list:            ['item_id', 'item_name', 'item_part_num', 'barcode', 'cost_nis', 'sale_nis', 'quantity'],
+  document_list:        ['document_type', 'document_number', 'document_date', 'customer_id', 'customer_name', 'amount_including_vat', 'amount'],
+  receipt_list:         ['document_number', 'document_date', 'customer_id', 'customer_name', 'amount'],
+};
+
+function renderListAsTable(listKey, list) {
+  if (!Array.isArray(list) || list.length === 0) {
+    return `<div class="empty">${escapeHtml(listKey)}: 0 records.</div>`;
+  }
+  const cols = PREFERRED_COLS[listKey] || Object.keys(list[0]).slice(0, 8);
+  const summary = `<div class="hint" style="margin-bottom:8px"><b>${escapeHtml(listKey)}</b>: ${list.length.toLocaleString()} records · showing first ${Math.min(list.length, 200)}</div>`;
+  const rows = list.slice(0, 200).map((row) =>
+    '<tr>' + cols.map((c) => `<td>${formatCell(row[c])}</td>`).join('') + '</tr>'
+  ).join('');
+  return summary + `
+    <div class="scroll-y">
+      <table class="data">
+        <thead><tr>${cols.map((c) => `<th>${escapeHtml(c)}</th>`).join('')}</tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+}
+
+function renderKeyValue(obj) {
+  const entries = Object.entries(obj);
+  const rows = entries.map(([k, v]) =>
+    `<tr><th style="white-space:nowrap">${escapeHtml(k)}</th><td>${formatCell(v)}</td></tr>`
+  ).join('');
+  return `<div class="scroll-y"><table class="data"><tbody>${rows}</tbody></table></div>`;
+}
+
+function formatCell(v) {
+  if (v === null || v === undefined || v === '') return '<span class="empty">—</span>';
+  if (typeof v === 'boolean') return v ? '✓' : '✗';
+  if (typeof v === 'number') {
+    // Heuristic: keep ints as-is, format decimals as currency-style
+    return Number.isInteger(v) ? String(v) : v.toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  if (typeof v === 'string') {
+    if (/^https?:\/\//.test(v)) return `<a href="${escapeAttr(v)}" target="_blank" rel="noopener">${escapeHtml(v)}</a>`;
+    return escapeHtml(v);
+  }
+  // arrays / objects
+  return `<details><summary>${Array.isArray(v) ? `array(${v.length})` : 'object'}</summary><pre>${escapeHtml(JSON.stringify(v, null, 2))}</pre></details>`;
+}
+
+// ===================================================================
+// Utils
+// ===================================================================
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, (c) =>
+    ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[c]);
+}
+function escapeAttr(s) { return escapeHtml(s); }
+function ymdToDmy(ymd) {
+  if (!ymd) return undefined;
+  const [y, m, d] = ymd.split('-');
+  return `${d}/${m}/${y}`;
+}
+</script>
+</body>
+</html>
