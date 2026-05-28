@@ -31,20 +31,26 @@ export async function gql(query, variables = {}) {
   return json.data;
 }
 
-// Fetch one item plus its subitems' column values in a single round trip.
-export async function fetchItemWithSubitems(itemId) {
+// Fetch the clicked item, then follow the customer relation to read the
+// linked customer's Rivhit numeric ID in a second round-trip.
+// Returns the item with `customerRivhitId` (Number, or NaN if missing) added.
+export async function fetchItemWithCustomerRivhitId(itemId, {
+  customerRelationColId,
+  customerLibraryRivhitIdColId,
+}) {
+  if (!customerRelationColId) {
+    throw new MondayError('COL_CUSTOMER_RELATION is not configured');
+  }
   const data = await gql(
     `query($ids: [ID!]) {
        items(ids: $ids) {
          id
          name
          board { id }
-         column_values { id text value type }
-         subitems {
-           id
-           name
-           board { id }
-           column_values { id text value type }
+         column_values {
+           id text value type
+           ... on BoardRelationValue { linked_item_ids linked_items { id } }
+           ... on MirrorValue { display_value }
          }
        }
      }`,
@@ -52,7 +58,32 @@ export async function fetchItemWithSubitems(itemId) {
   );
   const item = data.items?.[0];
   if (!item) throw new MondayError(`item ${itemId} not found`);
-  return item;
+
+  // Mirror columns return their value in display_value, not text. Normalize so
+  // callers can use findCol(...).text uniformly.
+  for (const cv of item.column_values || []) {
+    if (cv.type === 'mirror' && cv.display_value != null && !cv.text) {
+      cv.text = cv.display_value;
+    }
+  }
+
+  const rel = item.column_values?.find((c) => c.id === customerRelationColId);
+  const linkedId = rel?.linked_item_ids?.[0] ?? rel?.linked_items?.[0]?.id;
+  let customerRivhitId = NaN;
+  if (linkedId && customerLibraryRivhitIdColId) {
+    const linkedData = await gql(
+      `query($ids: [ID!], $cids: [String!]) {
+         items(ids: $ids) {
+           column_values(ids: $cids) { id text value type }
+         }
+       }`,
+      { ids: [String(linkedId)], cids: [customerLibraryRivhitIdColId] },
+    );
+    const cv = linkedData.items?.[0]?.column_values?.[0];
+    const raw = (cv?.text || '').trim();
+    customerRivhitId = Number(raw);
+  }
+  return { ...item, customerRivhitId };
 }
 
 // `columnValues` is a flat { columnId: rawValue } map.
@@ -76,6 +107,17 @@ export async function updateColumns(boardId, itemId, columnValues) {
       itemId: String(itemId),
       vals: JSON.stringify(columnValues),
     },
+  );
+}
+
+// Post a comment to the item's updates feed. Used for surfacing errors on
+// boards that don't have a dedicated "Last Error" column.
+export async function postItemUpdate(itemId, body) {
+  return gql(
+    `mutation($itemId: ID!, $body: String!) {
+       create_update(item_id: $itemId, body: $body) { id }
+     }`,
+    { itemId: String(itemId), body: String(body) },
   );
 }
 
