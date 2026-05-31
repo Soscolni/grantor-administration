@@ -18,6 +18,8 @@ app.get('/healthz', (_req, res) => res.json({ ok: true, service: 'monday-rivhit-
 
 const DOC_TYPE_MAP = parseDocTypeMap(process.env.DOC_TYPE_MAP);
 const RIVHIT_RECEIPT_TYPE = Number(process.env.RIVHIT_RECEIPT_TYPE || 2);
+// Rivhit payment_type for receipt-flow documents. 9 = העברה בנקאית.
+const RIVHIT_RECEIPT_PAYMENT_TYPE = Number(process.env.RIVHIT_RECEIPT_PAYMENT_TYPE || 9);
 
 // Invoice flow (חשבונית מס / חשבון חיוב) — wired to the main "Generate" button.
 app.post('/monday/webhook', (req, res) => handleWebhook(req, res, processInvoice));
@@ -92,7 +94,12 @@ async function processReceipt(itemId, boardId) {
   const cols = readColumnEnv();
   try {
     const ctx = await loadContext(itemId, cols);
-    const data = await issueDocument(itemId, ctx, RIVHIT_RECEIPT_TYPE);
+    const data = await issueDocument(itemId, ctx, RIVHIT_RECEIPT_TYPE, {
+      payment: [{
+        payment_type: RIVHIT_RECEIPT_PAYMENT_TYPE,
+        payment_sum: ctx.amount,
+      }],
+    });
     // Per design: no column writes for receipts. Just announce in updates.
     await postItemUpdate(
       itemId,
@@ -129,12 +136,13 @@ async function loadContext(itemId, cols) {
   return { item, customerId: item.customerRivhitId, description, amount, issueDate };
 }
 
-async function issueDocument(itemId, ctx, docTypeId) {
+async function issueDocument(itemId, ctx, docTypeId, extras = {}) {
   const payload = {
     document_type: docTypeId,
     customer_id: ctx.customerId,
     issue_date: ctx.issueDate,
     items: [{ description: ctx.description, quantity: 1, price_nis: ctx.amount }],
+    ...extras,
   };
   console.log(
     `[bridge] Document.New for item ${itemId}, customer ${ctx.customerId}, type ${docTypeId}, amount ${ctx.amount}`,
