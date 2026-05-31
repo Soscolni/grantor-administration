@@ -100,11 +100,14 @@ async function processReceipt(itemId, boardId) {
         payment_sum: ctx.amount,
       }],
     });
-    // Per design: no column writes for receipts. Just announce in updates.
-    await postItemUpdate(
-      itemId,
-      `קבלה הופקה ברווחית\n• מספר מסמך: ${data.document_number}\n• קישור: ${data.document_link || '(אין)'}`,
-    );
+    if (cols.receiptPdfLink && data.document_link) {
+      await safeUpdate(boardId, itemId, {
+        [cols.receiptPdfLink]: {
+          url: data.document_link,
+          text: `קבלה #${data.document_number}`,
+        },
+      });
+    }
     console.log(`[bridge] receipt item ${itemId} done: doc #${data.document_number}`);
   } catch (err) {
     await reportError(itemId, err);
@@ -195,6 +198,7 @@ function readColumnEnv() {
     status: process.env.COL_STATUS,
     docNumber: process.env.COL_DOC_NUMBER,
     pdfLink: process.env.COL_PDF_LINK,
+    receiptPdfLink: process.env.COL_RECEIPT_PDF_LINK,
     statusDoneLabel: process.env.STATUS_DONE_LABEL,
     statusGeneratingLabel: process.env.STATUS_GENERATING_LABEL,
   };
