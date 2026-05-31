@@ -83,7 +83,10 @@ async function processInvoice(itemId, boardId) {
     const updates = {};
     if (cols.docNumber) updates[cols.docNumber] = String(data.document_number ?? '');
     if (cols.pdfLink && data.document_link) {
-      updates[cols.pdfLink] = { url: data.document_link, text: `Doc #${data.document_number}` };
+      updates[cols.pdfLink] = {
+        url: data.document_link,
+        text: `${mirrorLabel} #${data.document_number}`,
+      };
     }
     if (cols.status && cols.statusDoneLabel) {
       updates[cols.status] = { label: cols.statusDoneLabel };
