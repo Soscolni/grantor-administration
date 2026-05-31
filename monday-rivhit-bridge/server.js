@@ -95,9 +95,9 @@ async function processReceipt(itemId, boardId) {
   try {
     const ctx = await loadContext(itemId, cols);
     const data = await issueDocument(itemId, ctx, RIVHIT_RECEIPT_TYPE, {
-      payment: [{
+      payments: [{
         payment_type: RIVHIT_RECEIPT_PAYMENT_TYPE,
-        payment_sum: ctx.amount,
+        amount_nis: ctx.amount,
       }],
     });
     if (cols.receiptPdfLink && data.document_link) {
