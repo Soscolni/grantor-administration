@@ -1,0 +1,18 @@
+{
+  "name": "monday-formula-sync",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Webhook: on a Monday button click, copy a formula column's computed value into a number column so it can be used in Monday automations.",
+  "scripts": {
+    "start": "node server.js",
+    "discover-columns": "node scripts/discover-columns.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
