@@ -115,9 +115,9 @@ async function loadContext(itemId, cols) {
       'with a numeric "מספר לקוח ברווחית" filled in.',
     );
   }
-  const description = (findCol(item, cols.description)?.text || '').trim();
+  const description = (item.name || '').trim();
   if (!description) {
-    throw new Error('Item description is empty — needed as the line description on the document.');
+    throw new Error('Row has no name — Monday item is missing the title used as the line description.');
   }
   const amountText = (findCol(item, cols.amount)?.text || '').trim();
   const amount = parseAmount(amountText);
@@ -134,7 +134,6 @@ async function issueDocument(itemId, ctx, docTypeId) {
     document_type: docTypeId,
     customer_id: ctx.customerId,
     issue_date: ctx.issueDate,
-    comments: ctx.description,
     items: [{ description: ctx.description, quantity: 1, price_nis: ctx.amount }],
   };
   console.log(
@@ -184,7 +183,6 @@ function readColumnEnv() {
     customerLibraryRivhitIdCol: process.env.CUSTOMER_LIBRARY_RIVHIT_ID_COL,
     docTypeMirror: process.env.COL_DOC_TYPE_MIRROR,
     issueDate: process.env.COL_ISSUE_DATE,
-    description: process.env.COL_DESCRIPTION,
     amount: process.env.COL_AMOUNT,
     status: process.env.COL_STATUS,
     docNumber: process.env.COL_DOC_NUMBER,
