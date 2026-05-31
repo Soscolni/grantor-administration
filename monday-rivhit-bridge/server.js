@@ -20,6 +20,10 @@ const DOC_TYPE_MAP = parseDocTypeMap(process.env.DOC_TYPE_MAP);
 const RIVHIT_RECEIPT_TYPE = Number(process.env.RIVHIT_RECEIPT_TYPE || 2);
 // Rivhit payment_type for receipt-flow documents. 9 = העברה בנקאית.
 const RIVHIT_RECEIPT_PAYMENT_TYPE = Number(process.env.RIVHIT_RECEIPT_PAYMENT_TYPE || 9);
+// Israeli VAT rate, used to gross up the pre-VAT amount in numeric_mm3w2bn0
+// (סכום לפני מע"מ) before sending it to Rivhit doc types whose
+// `price_include_vat` flag is true.
+const VAT_RATE = Number(process.env.VAT_RATE || 0.18);
 
 // Invoice flow (חשבונית מס / חשבון חיוב) — wired to the main "Generate" button.
 app.post('/monday/webhook', (req, res) => handleWebhook(req, res, processInvoice));
@@ -73,7 +77,8 @@ async function processInvoice(itemId, boardId) {
       );
     }
 
-    const data = await issueDocument(itemId, ctx, docTypeId);
+    const linePriceNis = await computeLinePrice(docTypeId, ctx.amount);
+    const data = await issueDocument(itemId, ctx, docTypeId, linePriceNis);
 
     const updates = {};
     if (cols.docNumber) updates[cols.docNumber] = String(data.document_number ?? '');
@@ -94,10 +99,11 @@ async function processReceipt(itemId, boardId) {
   const cols = readColumnEnv();
   try {
     const ctx = await loadContext(itemId, cols);
-    const data = await issueDocument(itemId, ctx, RIVHIT_RECEIPT_TYPE, {
+    const linePriceNis = await computeLinePrice(RIVHIT_RECEIPT_TYPE, ctx.amount);
+    const data = await issueDocument(itemId, ctx, RIVHIT_RECEIPT_TYPE, linePriceNis, {
       payments: [{
         payment_type: RIVHIT_RECEIPT_PAYMENT_TYPE,
-        amount_nis: ctx.amount,
+        amount_nis: linePriceNis,
       }],
     });
     if (cols.receiptPdfLink && data.document_link) {
@@ -139,18 +145,59 @@ async function loadContext(itemId, cols) {
   return { item, customerId: item.customerRivhitId, description, amount, issueDate };
 }
 
-async function issueDocument(itemId, ctx, docTypeId, extras = {}) {
+async function issueDocument(itemId, ctx, docTypeId, linePriceNis, extras = {}) {
   const payload = {
     document_type: docTypeId,
     customer_id: ctx.customerId,
     issue_date: ctx.issueDate,
-    items: [{ description: ctx.description, quantity: 1, price_nis: ctx.amount }],
+    items: [{ description: ctx.description, quantity: 1, price_nis: linePriceNis }],
     ...extras,
   };
   console.log(
-    `[bridge] Document.New for item ${itemId}, customer ${ctx.customerId}, type ${docTypeId}, amount ${ctx.amount}`,
+    `[bridge] Document.New for item ${itemId}, customer ${ctx.customerId}, type ${docTypeId}, preVat ${ctx.amount}, sentPrice ${linePriceNis}`,
   );
   return postRivhit('Document.New', payload);
+}
+
+// Cache Rivhit's Document.TypeList so we know per-type whether `price_nis`
+// is interpreted as VAT-inclusive (price_include_vat=true) or as the
+// pre-VAT amount Rivhit should gross up itself (price_include_vat=false).
+// Fresh per process; types rarely change at runtime.
+let docTypeListPromise = null;
+async function loadDocTypeList() {
+  if (!docTypeListPromise) {
+    docTypeListPromise = postRivhit('Document.TypeList', {})
+      .then((data) => data?.document_type_list || [])
+      .catch((err) => {
+        docTypeListPromise = null;
+        throw err;
+      });
+  }
+  return docTypeListPromise;
+}
+
+// Convert the pre-VAT amount from Monday into the value to send as
+// items[0].price_nis: gross up by VAT_RATE when the doc type expects
+// VAT-inclusive prices, pass through when it doesn't. Fail open
+// (no VAT applied) when the type is unknown — clearer to debug the
+// wrong total than to silently misbill.
+async function computeLinePrice(docTypeId, preVatAmount) {
+  let typeList;
+  try {
+    typeList = await loadDocTypeList();
+  } catch (err) {
+    console.warn(`[bridge] Document.TypeList lookup failed (assuming exclusive): ${err.message}`);
+    return preVatAmount;
+  }
+  const meta = typeList.find((t) => t.document_type === docTypeId);
+  if (!meta) {
+    console.warn(`[bridge] doc type ${docTypeId} not in Document.TypeList; sending pre-VAT amount as-is`);
+    return preVatAmount;
+  }
+  if (meta.price_include_vat) {
+    return Math.round(preVatAmount * (1 + VAT_RATE) * 100) / 100;
+  }
+  return preVatAmount;
 }
 
 async function reportError(itemId, err) {
