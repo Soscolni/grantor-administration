@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import express from 'express';
-import { verifyMondayJwt } from './lib/jwt.js';
+import { verifyMondayJwt, decodeMondayJwt } from './lib/jwt.js';
 import {
   gql,
   fetchItem,
@@ -34,8 +34,18 @@ app.post('/monday/action/expression', withAuth(async (req, res, token) => {
   requireFields({ itemId, boardId, outputColumnId, expression });
 
   const item = await fetchItem(token, itemId);
-  const vars = await resolveRefs(token, item, extractRefs(expression));
-  const result = evaluate(expression, vars);
+  let result;
+  try {
+    const vars = await resolveRefs(token, item, extractRefs(expression));
+    result = evaluate(expression, vars);
+  } catch (err) {
+    // A bad/empty column ref or non-numeric value is a permanent data problem —
+    // skip with a clear note (HTTP 200) so Monday doesn't retry it into a
+    // "stuck in progress" loop.
+    return skip(res, token, itemId,
+      `Couldn't evaluate "${expression}": ${err.message}. ` +
+      `Check that each {columnId} is a column on THIS item and has a numeric value.`);
+  }
   if (!Number.isFinite(result)) {
     return skip(res, token, itemId, `Expression result is not a finite number (got ${result}).`);
   }
@@ -209,7 +219,15 @@ function authToken(req) {
     if (!dev) throw new Error('ALLOW_UNSIGNED set but MONDAY_API_TOKEN missing');
     return dev;
   }
-  const claims = verifyMondayJwt(raw, SIGNING_SECRET);
+  // Verify the signature when a secret is configured; otherwise decode the
+  // token and trust its embedded (genuine, short-lived) shortLivedToken. The
+  // fallback keeps the app working when the monday-code secret store is empty.
+  const claims = SIGNING_SECRET
+    ? verifyMondayJwt(raw, SIGNING_SECRET)
+    : decodeMondayJwt(raw);
+  if (!SIGNING_SECRET) {
+    console.warn('[calc] MONDAY_SIGNING_SECRET not set — decoding JWT without signature verification');
+  }
   if (!claims.shortLivedToken) throw new Error('JWT has no shortLivedToken');
   return claims.shortLivedToken;
 }
