@@ -53,6 +53,31 @@ npm start                  # listens on PORT (default 3002)
 ngrok http 3002            # expose to Monday
 ```
 
+## Deploy on Railway
+
+Same monorepo pattern as the other services — one Railway **service** per subdir,
+GitHub-connected, auto-deploys on push.
+
+1. Railway project → **New → GitHub Repo** → pick `grantor-administration`.
+2. Service **Settings**:
+   - **Root Directory** = `monday-commission-bridge`
+   - Branch = whatever the other services deploy from (e.g. `main`). Start command
+     and healthcheck come from [railway.json](railway.json) (`npm start`, `/healthz`).
+3. Service **Variables** — only one is required (board/column ids ship as defaults
+   in `server.js`):
+   - `MONDAY_API_TOKEN` = your Monday token **(required)**
+   - `WEBHOOK_SHARED_SECRET` = optional; if set, the webhook URL needs `?secret=`
+   - (override any `COL_*` / `BOARD_*` only if the boards change)
+4. **Settings → Networking → Generate Domain** → gives e.g.
+   `https://monday-commission-bridge-production.up.railway.app`.
+   Railway injects `PORT`; the server already binds to it.
+5. Confirm: open `https://<domain>/healthz` → `{ "ok": true, ... }`.
+6. Wire the Monday automation's **Send a webhook** to
+   `https://<domain>/monday/webhook` (+ `?secret=` if set).
+
+> The code must be on the branch the service deploys from — merge this branch to
+> `main` first, or point the service at the feature branch.
+
 ## Map the column ids (one-time)
 
 ```

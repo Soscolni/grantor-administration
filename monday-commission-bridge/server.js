@@ -15,6 +15,25 @@ import { commissionSchedule, round2 } from './lib/calcs.js';
 const app = express();
 const PORT = Number(process.env.PORT) || 3002;
 
+// Board-specific config. These are Monday ids, not secrets, so they ship as
+// defaults — that way the only thing a deploy (e.g. Railway) MUST set is
+// MONDAY_API_TOKEN. Any value can still be overridden by an env var of the same
+// name. Re-map these if the boards/columns change (see scripts/discover-boards).
+const CFG = {
+  BOARD_PEIMOT: '5097251047',
+  BOARD_INVOICES: '5097251687',
+  COL_PEIMA_AMOUNT: 'numeric_mm3qr214',
+  COL_PEIMA_TO_GRANT: 'board_relation_mm3wzw94',
+  COL_PEIMA_ORDER: 'dropdown_mm3w7n8a',
+  COL_GRANT_WINNING: 'numeric_mm3q5g45',
+  COL_GRANT_TO_AGREEMENT: 'board_relation_mm3qzc9e',
+  COL_GRANT_TO_PEIMOT: 'board_relation_mm3wqr6g',
+  COL_AGREEMENT_RATE: 'numeric_mm3q14f9',
+  COL_AGREEMENT_CAP: 'numeric_mm3sxtvd',
+  COL_INVOICE_AMOUNT: 'numeric_mm3w2bn0',
+};
+const cfg = (k) => process.env[k] || CFG[k];
+
 app.use(express.json({ limit: '1mb' }));
 
 app.get('/healthz', (_req, res) => res.json({ ok: true, service: 'monday-commission-bridge' }));
@@ -35,7 +54,7 @@ function handleWebhook(req, res) {
   if (!pulseId || !boardId) {
     return res.status(400).json({ error: 'missing event.pulseId or event.boardId' });
   }
-  const allow = process.env.BOARD_PEIMOT;
+  const allow = cfg('BOARD_PEIMOT');
   if (allow && String(boardId) !== String(allow)) {
     return res.status(200).json({ skipped: 'board not allow-listed' });
   }
@@ -154,16 +173,16 @@ async function reportError(peimaId, err) {
 
 function readColumnEnv() {
   return {
-    invoicesBoard: process.env.BOARD_INVOICES,
-    peimaAmount: process.env.COL_PEIMA_AMOUNT,
-    peimaOrder: process.env.COL_PEIMA_ORDER,
-    peimaToGrant: process.env.COL_PEIMA_TO_GRANT,
-    grantWinning: process.env.COL_GRANT_WINNING,
-    grantToAgreement: process.env.COL_GRANT_TO_AGREEMENT,
-    grantToPeimot: process.env.COL_GRANT_TO_PEIMOT,
-    agreementRate: process.env.COL_AGREEMENT_RATE,
-    agreementCap: process.env.COL_AGREEMENT_CAP,
-    invoiceAmount: process.env.COL_INVOICE_AMOUNT,
+    invoicesBoard: cfg('BOARD_INVOICES'),
+    peimaAmount: cfg('COL_PEIMA_AMOUNT'),
+    peimaOrder: cfg('COL_PEIMA_ORDER'),
+    peimaToGrant: cfg('COL_PEIMA_TO_GRANT'),
+    grantWinning: cfg('COL_GRANT_WINNING'),
+    grantToAgreement: cfg('COL_GRANT_TO_AGREEMENT'),
+    grantToPeimot: cfg('COL_GRANT_TO_PEIMOT'),
+    agreementRate: cfg('COL_AGREEMENT_RATE'),
+    agreementCap: cfg('COL_AGREEMENT_CAP'),
+    invoiceAmount: cfg('COL_INVOICE_AMOUNT'),
   };
 }
 
