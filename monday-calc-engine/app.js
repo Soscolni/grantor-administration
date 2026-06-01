@@ -34,8 +34,18 @@ app.post('/monday/action/expression', withAuth(async (req, res, token) => {
   requireFields({ itemId, boardId, outputColumnId, expression });
 
   const item = await fetchItem(token, itemId);
-  const vars = await resolveRefs(token, item, extractRefs(expression));
-  const result = evaluate(expression, vars);
+  let result;
+  try {
+    const vars = await resolveRefs(token, item, extractRefs(expression));
+    result = evaluate(expression, vars);
+  } catch (err) {
+    // A bad/empty column ref or non-numeric value is a permanent data problem —
+    // skip with a clear note (HTTP 200) so Monday doesn't retry it into a
+    // "stuck in progress" loop.
+    return skip(res, token, itemId,
+      `Couldn't evaluate "${expression}": ${err.message}. ` +
+      `Check that each {columnId} is a column on THIS item and has a numeric value.`);
+  }
   if (!Number.isFinite(result)) {
     return skip(res, token, itemId, `Expression result is not a finite number (got ${result}).`);
   }
