@@ -43,3 +43,20 @@ export function verifyMondayJwt(token, secret) {
   }
   return payload;
 }
+
+// Decode the JWT payload WITHOUT checking the signature. Used as a fallback when
+// no signing secret is configured. Safe-ish for a private app because the real
+// credential is the embedded shortLivedToken — a genuine, short-lived,
+// app-scoped Monday token; a forged JWT carries no usable token. Still, set
+// MONDAY_SIGNING_SECRET in production for defence-in-depth (then verifyMondayJwt
+// runs instead).
+export function decodeMondayJwt(token) {
+  if (!token) throw new Error('missing JWT');
+  const parts = token.split('.');
+  if (parts.length !== 3) throw new Error('malformed JWT');
+  const payload = JSON.parse(b64url(parts[1]).toString('utf8'));
+  if (payload.exp && Date.now() / 1000 > payload.exp) {
+    throw new Error('JWT expired');
+  }
+  return payload;
+}

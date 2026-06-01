@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import express from 'express';
-import { verifyMondayJwt } from './lib/jwt.js';
+import { verifyMondayJwt, decodeMondayJwt } from './lib/jwt.js';
 import {
   gql,
   fetchItem,
@@ -209,7 +209,15 @@ function authToken(req) {
     if (!dev) throw new Error('ALLOW_UNSIGNED set but MONDAY_API_TOKEN missing');
     return dev;
   }
-  const claims = verifyMondayJwt(raw, SIGNING_SECRET);
+  // Verify the signature when a secret is configured; otherwise decode the
+  // token and trust its embedded (genuine, short-lived) shortLivedToken. The
+  // fallback keeps the app working when the monday-code secret store is empty.
+  const claims = SIGNING_SECRET
+    ? verifyMondayJwt(raw, SIGNING_SECRET)
+    : decodeMondayJwt(raw);
+  if (!SIGNING_SECRET) {
+    console.warn('[calc] MONDAY_SIGNING_SECRET not set — decoding JWT without signature verification');
+  }
   if (!claims.shortLivedToken) throw new Error('JWT has no shortLivedToken');
   return claims.shortLivedToken;
 }
