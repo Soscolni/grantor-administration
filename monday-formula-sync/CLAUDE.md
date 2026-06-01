@@ -88,19 +88,36 @@ Look for type `formula` (the source) and type `numbers` (the destination).
 ## Wiring up the Monday automation (one-time)
 
 1. On the board: **Automate → Create custom automation**.
-2. Trigger: **When [Button] is clicked**, picking a button column (e.g. "Sync
-   total").
+2. Trigger: any trigger works (see "Triggers" below). The simplest is
+   **When [Button] is clicked**.
 3. Action: **Send a webhook** with the URL from section A (or B).
    Add `&secret=<WEBHOOK_SHARED_SECRET>` if you set that env var.
 4. Save. Monday sends a one-time `challenge`; the service echoes it back
    automatically and the integration goes live.
 
 Now build the automation you actually wanted on top of the **number** column the
-webhook fills — it updates whenever the button is clicked.
+webhook fills — it updates whenever the trigger fires.
 
-> Tip: you can also chain it. Have a first automation click the button (or hit
-> this webhook) on a schedule / on change, so the number column stays in sync
-> without a human clicking.
+### Triggers — it does NOT have to be a button
+
+The service only reads `event.pulseId` + `event.boardId`, which Monday's "Send a
+webhook" action includes for **every** trigger. So you can use:
+
+- **When a column changes → send a webhook** (keep the number live as inputs
+  change)
+- **When a status changes to something → send a webhook**
+- **When a date arrives / every time period → send a webhook** (scheduled sync)
+- When an item is created, etc.
+
+Two caveats specific to a **column-change** trigger:
+
+- **Don't trigger on the formula column itself.** Formula columns don't fire
+  automations at all — that's the whole limitation we're working around. Trigger
+  on the columns that *feed* the formula; by the time we read it, its
+  `display_value` already reflects the new result.
+- **Don't trigger on the target number column.** The webhook writes that column,
+  so triggering on it creates an infinite loop. Trigger on the inputs (or a
+  status/date), never on the column this webhook fills.
 
 ---
 
