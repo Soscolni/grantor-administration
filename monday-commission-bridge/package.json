@@ -1,0 +1,19 @@
+{
+  "name": "monday-commission-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Webhook bridge: on a פעימות button click, read the raw winning amount / percentages / installments across linked boards, compute the commission F = min(R, cap×P), and create a row in חשבוניות וגביה. Reads only real columns, so the Monday formula/mirror API limit never applies.",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test",
+    "discover-boards": "node scripts/discover-boards.mjs"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
