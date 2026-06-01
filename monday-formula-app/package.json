@@ -1,0 +1,17 @@
+{
+  "name": "monday-formula-app",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Monday app: a custom integration action that copies a formula column's value into a number column so automations can use it. No personal token, no tunnel — hosted on monday-code.",
+  "scripts": {
+    "start": "node app.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
