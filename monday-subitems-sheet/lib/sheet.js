@@ -1,7 +1,12 @@
-// Read a tab from a public (link-shared) Google Sheet as CSV via the gviz
-// export endpoint. No googleapis, no credentials — just built-in fetch, per the
-// repo's "no framework / minimal deps" rule. The sheet must be shared as
-// "anyone with the link can view" for this to work.
+// Read a tab from a public (link-shared) Google Sheet as CSV. No googleapis, no
+// credentials — just built-in fetch, per the repo's "no framework / minimal deps"
+// rule. The sheet must be shared as "anyone with the link can view".
+//
+// IMPORTANT: the gviz/export `sheet=<name>` parameter is UNRELIABLE for an
+// unknown tab name — Google silently serves the FIRST sheet instead of erroring.
+// So we never address a tab by name: we list the real tabs (name -> gid) from the
+// htmlview page, fail if the requested tab is missing, and fetch the exact tab by
+// gid. Addressing by gid is reliable (a bad gid 400s).
 
 export class SheetError extends Error {
   constructor(message) {
@@ -10,10 +15,12 @@ export class SheetError extends Error {
   }
 }
 
-// gviz CSV export for a single named tab. encodeURIComponent is required —
-// tab names can contain spaces or Hebrew (grant-type values).
-export const gvizUrl = (sheetId, tabName) =>
-  `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(tabName)}`;
+// CSV export of one tab, addressed by gid (reliable, unlike sheet=<name>).
+export const csvUrl = (sheetId, gid) =>
+  `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`;
+
+const htmlviewUrl = (sheetId) =>
+  `https://docs.google.com/spreadsheets/d/${sheetId}/htmlview`;
 
 // Exact header labels (trimmed, case-insensitive) that mark a header row. Exact
 // match — NOT substring — so a data value like "Stage 1" or "שלב ראשון" is never
@@ -24,6 +31,65 @@ const DESC_HEADERS = new Set([
   'תיאור', 'תיאור המשימה', 'משימה', 'משימות', 'פירוט', 'פירוט המשימה',
 ]);
 const normHeader = (s) => String(s).trim().toLowerCase();
+
+// Decode the few escape sequences Google uses inside the htmlview JS strings
+// (\/ \" \\ plus \xXX / \uXXXX), so tab names come out clean.
+function decodeJsString(s) {
+  return String(s)
+    .replace(/\\x([0-9a-fA-F]{2})/g, (_, h) => String.fromCharCode(parseInt(h, 16)))
+    .replace(/\\u([0-9a-fA-F]{4})/g, (_, h) => String.fromCharCode(parseInt(h, 16)))
+    .replace(/\\(["/\\])/g, '$1');
+}
+
+// Parse a tab name -> gid map from a Google Sheets htmlview page. The page embeds
+// one `items.push({name: "Pre-Seed", pageUrl: "...gid=0", gid: "0", ...})` per tab.
+// Pure (no network) so it's unit-testable. Returns Map<name, gid>.
+export function parseTabsFromHtml(html) {
+  const map = new Map();
+  const re = /items\.push\(\{\s*name:\s*"((?:[^"\\]|\\.)*)"[^}]*?gid:\s*"(\d+)"/g;
+  let m;
+  while ((m = re.exec(String(html))) !== null) {
+    map.set(decodeJsString(m[1]), m[2]);
+  }
+  return map;
+}
+
+// Fetch + parse the live tab list. Throws SheetError if the sheet isn't readable
+// or no tabs parse (fail closed — never guess which sheet to use).
+export async function listTabs(sheetId) {
+  let res;
+  try {
+    res = await fetch(htmlviewUrl(sheetId), { redirect: 'follow' });
+  } catch (err) {
+    throw new SheetError(`לא ניתן להתחבר לגיליון Google: ${err.message}`);
+  }
+  const html = await res.text();
+  if (!res.ok) {
+    throw new SheetError(
+      `לא ניתן לקרוא את הגיליון (HTTP ${res.status}). ודא שהוא משותף לצפייה (anyone with the link).`,
+    );
+  }
+  const tabs = parseTabsFromHtml(html);
+  if (tabs.size === 0) {
+    throw new SheetError(
+      'לא ניתן לקרוא את רשימת הלשוניות בגיליון. ודא שהוא משותף לצפייה (anyone with the link).',
+    );
+  }
+  return tabs;
+}
+
+// Resolve a tab name to its gid: exact match, then a trimmed/case-insensitive
+// convenience match. Throws SheetError (listing the tabs that DO exist) if missing.
+function resolveGid(tabs, tabName) {
+  if (tabs.has(tabName)) return tabs.get(tabName);
+  const want = String(tabName).trim().toLowerCase();
+  for (const [name, gid] of tabs) {
+    if (name.trim().toLowerCase() === want) return gid;
+  }
+  throw new SheetError(
+    `לא נמצאה לשונית בשם "${tabName}" בגיליון. לשוניות קיימות: ${[...tabs.keys()].join(', ')}.`,
+  );
+}
 
 // Hand-rolled RFC-4180-ish parser: handles quoted fields, embedded commas,
 // doubled quotes ("") and CRLF/LF. Never split(',') — task descriptions
@@ -88,23 +154,22 @@ export function pickColumns(rows) {
   return tasks;
 }
 
-// Fetch a tab and return its tasks. Throws SheetError on a missing tab or a
-// non-shared sheet (gviz answers those with HTTP 200 + an HTML body rather than
-// a clean 404), so the caller can post a friendly note and create nothing.
+// Fetch a tab's tasks by name. Lists the real tabs, errors if the requested one
+// is missing (SheetError, listing existing tabs), else fetches that exact tab by
+// gid. SheetError → the caller posts a friendly note and creates nothing.
 export async function fetchTasksFromSheet(sheetId, tabName) {
-  const url = gvizUrl(sheetId, tabName);
+  const tabs = await listTabs(sheetId);
+  const gid = resolveGid(tabs, tabName);
   let res;
   try {
-    res = await fetch(url, { redirect: 'follow' });
+    res = await fetch(csvUrl(sheetId, gid), { redirect: 'follow' });
   } catch (err) {
-    throw new SheetError(`לא ניתן להתחבר לגיליון Google: ${err.message}`);
+    throw new SheetError(`לא ניתן להוריד את הלשונית "${tabName}": ${err.message}`);
   }
   const body = await res.text();
   const ct = res.headers.get('content-type') || '';
   if (!res.ok || ct.includes('text/html') || body.trimStart().startsWith('<')) {
-    throw new SheetError(
-      `לא ניתן לקרוא את הלשונית "${tabName}". ודא שהלשונית קיימת ושהגיליון משותף לצפייה (anyone with the link).`,
-    );
+    throw new SheetError(`לא ניתן לקרוא את הלשונית "${tabName}" (gid ${gid}).`);
   }
   return pickColumns(parseCsv(body));
 }

@@ -97,13 +97,19 @@ columns: **stage** and **task description**.
   mistaken for a header. ⚠️ **Confirm against the real sheet** — if it's description-first, flip the
   indices in [pickColumns](lib/sheet.js); add header spellings to the label sets there if a tab uses
   others. Getting it wrong names subitems after stages.
-- The sheet **must stay link-shared** ("anyone with the link can view") for gviz to return CSV;
-  otherwise the service posts a note and creates nothing.
+- The sheet **must stay link-shared** ("anyone with the link can view"); otherwise the service can't
+  read it, posts a note, and creates nothing.
+- **Missing tab is detected reliably.** Google's CSV `sheet=<name>` export silently returns the FIRST
+  sheet for an unknown name (it does NOT 404), so the service instead lists the real tabs from the
+  sheet's `htmlview` page (name → gid) and fetches the requested tab **by gid**. A grant type with no
+  matching tab → a note listing the tabs that do exist (e.g. `I4F` → "existing tabs: Pre-Seed"), nothing
+  created. See [listTabs / fetchTasksFromSheet](lib/sheet.js).
 
-Quick sanity check (should download CSV, not an HTML sign-in page):
+Quick sanity check: open the sheet in an **incognito** window (no Google login) — it should load. To see
+exactly what the service reads for a tab, export it by gid (gid `0` is the first tab):
 
 ```
-https://docs.google.com/spreadsheets/d/13f658G5KXGbmKvXR7m1U_j5mYX4Fd0upgWqTJwE6scc/gviz/tq?tqx=out:csv&sheet=Pre-Seed
+https://docs.google.com/spreadsheets/d/13f658G5KXGbmKvXR7m1U_j5mYX4Fd0upgWqTJwE6scc/export?format=csv&gid=0
 ```
 
 ---
@@ -141,11 +147,11 @@ monday-subitems-sheet/
 ├── server.js             # POST /monday/webhook + GET /healthz + processItem()
 ├── lib/
 │   ├── monday.js         # gql, fetchItemForProcessing, createSubitem, postItemUpdate, findCol, readColValue
-│   └── sheet.js          # gvizUrl, fetchTasksFromSheet, parseCsv, pickColumns, SheetError
+│   └── sheet.js          # listTabs, fetchTasksFromSheet, parseTabsFromHtml, parseCsv, pickColumns, SheetError
 ├── scripts/
 │   └── discover.js       # column-ID discovery + guarded `create-stage-col` subcommand
 ├── test/
-│   └── sheet.test.js     # node:test for parseCsv + pickColumns (pure, no network)
+│   └── sheet.test.js     # node:test for parseCsv + pickColumns + parseTabsFromHtml (pure, no network)
 ├── railway.json          # NIXPACKS, npm start, healthcheck /healthz
 ├── .env.example          # template, safe to commit
 └── CLAUDE.md             # this file
@@ -159,6 +165,9 @@ monday-subitems-sheet/
   would make a top-level row, not a subitem.
 - **Stage must be a text column.** Text takes the bare string. A status column would need
   `{"label":"..."}` — `create_labels_if_missing:true` is set as a safety net but text is the contract.
+- **Google's `sheet=<name>` CSV export lies for unknown tabs** — it serves the FIRST sheet instead of
+  erroring. So tabs are resolved by gid (listed from `htmlview`), never by name. Don't "simplify" this
+  back to `?sheet=<name>`, or every grant type without a tab would silently get the first tab's tasks.
 - **Webhook returns 200 even on failure** so Monday doesn't retry; errors are posted as item updates.
 - **Idempotency is read-then-create.** It covers retries/double-clicks but not two truly simultaneous
   clicks (same residual risk as the sibling bridges).

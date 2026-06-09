@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseCsv, pickColumns, gvizUrl } from '../lib/sheet.js';
+import { parseCsv, pickColumns, parseTabsFromHtml, csvUrl } from '../lib/sheet.js';
 
 test('parseCsv: simple rows', () => {
   assert.deepEqual(parseCsv('a,b\nc,d'), [['a', 'b'], ['c', 'd']]);
@@ -99,13 +99,29 @@ test('pickColumns: empty input -> empty list', () => {
   assert.deepEqual(pickColumns([['', '']]), []);
 });
 
-test('gvizUrl: encodes spaces and Hebrew tab names', () => {
+test('csvUrl: builds the export-by-gid URL', () => {
   assert.equal(
-    gvizUrl('SHEET', 'Pre-Seed'),
-    'https://docs.google.com/spreadsheets/d/SHEET/gviz/tq?tqx=out:csv&sheet=Pre-Seed',
+    csvUrl('SHEET', '0'),
+    'https://docs.google.com/spreadsheets/d/SHEET/export?format=csv&gid=0',
   );
-  assert.equal(
-    gvizUrl('SHEET', 'Seed Round'),
-    'https://docs.google.com/spreadsheets/d/SHEET/gviz/tq?tqx=out:csv&sheet=Seed%20Round',
+});
+
+test('parseTabsFromHtml: extracts name -> gid, decodes escapes, ignores pageUrl gid=', () => {
+  // Mirrors the real htmlview markup: each tab is an items.push({name,pageUrl,gid}).
+  // pageUrl contains "gid=0" (equals form) and \/ \x3d escapes that must NOT be
+  // mistaken for the gid, and a tab name with a \/ escape to decode.
+  const html = [
+    'var items = [];',
+    'items.push({name: "Pre-Seed", pageUrl: "https:\\/\\/d\\/X\\/htmlview\\/sheet?headers\\x3dtrue&gid=0", gid: "0",initialSheet: true});',
+    'items.push({name: "מחקר יישומי", pageUrl: "https:\\/\\/d\\/X\\/sheet?gid=123", gid: "123"});',
+    'items.push({name: "A\\/B", pageUrl: "...gid=99", gid: "7"});',
+  ].join('\n');
+  assert.deepEqual(
+    [...parseTabsFromHtml(html).entries()],
+    [['Pre-Seed', '0'], ['מחקר יישומי', '123'], ['A/B', '7']],
   );
+});
+
+test('parseTabsFromHtml: no tabs -> empty map', () => {
+  assert.equal(parseTabsFromHtml('<html>no items here</html>').size, 0);
 });
