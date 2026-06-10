@@ -45,6 +45,23 @@ npm start
 ```
 Default port is 3000; override with `PORT=<n> npm start`.
 
+## Running two apps in one Railway service (optional)
+
+Each automation normally gets its own Railway service (Root Directory = the subdir). To run **several apps behind one service / one public URL** instead, the repo root has a small launcher — [launch.js](launch.js) + root [package.json](package.json) + [railway.json](railway.json):
+
+- `postinstall` installs each subdir's deps into its own `node_modules` (no shared/hoisted deps — the apps stay self-contained).
+- `npm start` → `launch.js` spawns each app as its own `node server.js` on an internal port and reverse-proxies by **path prefix**. It imports **no code** across subdirs (they remain independent processes), so the "don't couple subdirs" rule still holds.
+
+Current routing (extend the `APPS` map to add more):
+
+| Path | App |
+| --- | --- |
+| `/healthz` | the launcher itself (service liveness) |
+| `/monday/webhook`, `/monday/webhook/receipt`, … | `monday-rivhit-bridge` (mounted at root) |
+| `/subitems/...` | `monday-subitems-sheet` (prefix stripped) |
+
+Deploy: a service with **Root Directory = repo root**. Its env vars are the **union** of the apps' vars (the rivhit set + `MONDAY_API_TOKEN`; the subitems board/column/sheet ids ship as defaults). `WEBHOOK_SHARED_SECRET`, if set, applies to **both** apps' webhooks. Re-point each Monday automation to the new domain (rivhit at `/monday/webhook…`, subitems at `/subitems/monday/webhook`). Adding this root launcher does **not** affect existing per-subdir services.
+
 ## Integrating Rivhit into a new automation
 
 The Rivhit API mechanics live in [rivhit-poc/CLAUDE.md](rivhit-poc/CLAUDE.md). Read that first before writing any Rivhit code in a new subdir. The short version:

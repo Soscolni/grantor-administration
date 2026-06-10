@@ -1,0 +1,14 @@
+{
+  "name": "grantor-administration-combined",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Optional combined Railway service: runs monday-rivhit-bridge and monday-subitems-sheet behind one HTTP port. Each app stays self-contained; launch.js only spawns the processes and routes by path prefix. Per-subdir deploys still work independently — this file does not affect them.",
+  "scripts": {
+    "postinstall": "npm --prefix monday-rivhit-bridge install && npm --prefix monday-subitems-sheet install",
+    "start": "node launch.js"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
